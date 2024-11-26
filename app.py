@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
 from PIL import Image, ImageTk
-
+import cv2
 
 class FileSystemSimulator:
     def __init__(self, root):
@@ -150,27 +150,49 @@ class FileSystemSimulator:
     def show_dialog(self, title, prompt):
         return simpledialog.askstring(title, prompt, parent=self.root)
 
-
-def show_image_presentation(root, callback):
+def show_video_presentation(root, callback):
     presentation_window = tk.Toplevel(root)
     presentation_window.geometry("800x600")
     presentation_window.title("Presentación")
     presentation_window.configure(bg="black")
 
-    image = Image.open("presentacion.png")
-    image = image.resize((800, 600), Image.LANCZOS)
-    img = ImageTk.PhotoImage(image)
+    #Crear un contenedor para centrar el video
+    # video_frame = tk.Frame(presentation_window, bg="black", width=800, height=600)
+    # video_frame.place(relx=0.5, rely=0.5, anchor="center")
 
-    label = tk.Label(presentation_window, image=img, bg="black")
-    label.image = img
-    label.pack()
+    # Crear un widget para mostrar el video
+    video_label = tk.Label(presentation_window, bg="black")
+    video_label.pack(expand=True, fill="both")
 
-    presentation_window.after(2000, lambda: (presentation_window.destroy(), callback()))
+    cap = cv2.VideoCapture("./material/presentacion.mp4")  # Ruta al archivo de video
 
+    def update_frame():
+        ret, frame = cap.read()
+        if ret:
+            # Redimensionar el frame a 800x600
+            frame = cv2.resize(frame, (800, 600))
+            # Convertir el frame de BGR (OpenCV) a RGB (Tkinter)
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            img = Image.fromarray(frame)
+            img_tk = ImageTk.PhotoImage(image=img)
+
+            # Mostrar el frame en el widget
+            video_label.img_tk = img_tk
+            video_label.config(image=img_tk)
+
+            # Repetir después de 15 ms (ajusta para sincronizar con los FPS del video)
+            presentation_window.after(15, update_frame)
+        else:
+            # Cuando termine el video
+            cap.release()
+            presentation_window.destroy()
+            callback()
+
+    update_frame()
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
-    show_image_presentation(root, root.deiconify)
+    show_video_presentation(root, root.deiconify)
     app = FileSystemSimulator(root)
     root.mainloop()
