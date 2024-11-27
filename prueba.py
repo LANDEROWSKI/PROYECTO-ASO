@@ -1,185 +1,193 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
-from PIL import Image, ImageTk
+from PIL import Image, ImageTk, ImageDraw
 import time
-import cv2
+import os
+import json
 
+# Usuarios y contraseñas predefinidos
+users = {
+    "Erick": "12345",
+    "Angel": "12345"
+}
 
-class FileSystemSimulator:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Simulador de Sistema de Archivos")
-        self.filesystem = {"root": {"folders": {}, "files": []}}
-        self.current_path = "root"
+# Rutas de las fotos de perfil
+profile_pics = {
+    "Erick": "./material/erick.jpg",
+    "Angel": "./material/angel.jpg"
+}
 
-        self.icon_size = (60, 60)
-        self.grid_size = 4
-        self.icon_spacing = 100
+# Inicializar estructura de archivos
+filesystem = {
+    "root": {
+        "folders": {},
+        "files": {}
+    }
+}
 
-    def show_linux_desktop(self):
-        self.desktop_window = tk.Toplevel(self.root)
-        self.desktop_window.geometry("800x600")
-        self.desktop_window.title("Escritorio Linux")
-        self.desktop_window.configure(bg="#a9a6a5")
+# Cargar el sistema de archivos desde el archivo JSON si existe
+if os.path.exists("niveluno.json"):
+    with open("niveluno.json", "r") as f:
+        filesystem = json.load(f)
 
-        # Crear barra de tareas
-        taskbar = tk.Frame(self.desktop_window, bg="gray20", height=40)
-        taskbar.pack(side="bottom", fill="x")
+def save_filesystem():
+    with open("niveluno.json", "w") as f:
+        json.dump(filesystem, f, indent=4)
 
-        # Cargar íconos de la barra de tareas
-        wifi_icon = ImageTk.PhotoImage(Image.open("icons/wifi.png").resize((20, 20)))
-        battery_icon = ImageTk.PhotoImage(Image.open("icons/battery.png").resize((20, 20)))
-        sound_icon = ImageTk.PhotoImage(Image.open("icons/sound.png").resize((20, 20)))
+def get_unique_filename(base_name, files_dict):
+    """Generar un nombre único para evitar duplicados."""
+    if base_name not in files_dict:
+        return base_name
+    counter = 1
+    while f"{base_name}({counter})" in files_dict:
+        counter += 1
+    return f"{base_name}({counter})"
 
-        self.taskbar_icons = [wifi_icon, battery_icon, sound_icon]
+def logout(window):
+    window.destroy()
+    root.deiconify()
+    save_filesystem()
 
-        # Widgets para íconos de la barra de tareas
-        tk.Label(taskbar, image=wifi_icon, bg="gray20").pack(side="left", padx=5, pady=5)
-        tk.Label(taskbar, image=battery_icon, bg="gray20").pack(side="left", padx=5, pady=5)
-        tk.Label(taskbar, image=sound_icon, bg="gray20").pack(side="left", padx=5, pady=5)
+def login():
+    username = username_entry.get()
+    password = password_entry.get()
+    if username in users and users[username] == password:
+        welcome_label.config(text=f"¡Bienvenido {username}!", fg="green")
+        welcome_label.pack()
+        animate_welcome()
+        root.after(2000, lambda: [root.withdraw(), open_desktop()])
+    else:
+        messagebox.showerror("Error", "Usuario o contraseña incorrectos")
 
-        # Reloj en la barra de tareas
-        clock_label = tk.Label(taskbar, text="", bg="gray20", fg="white", font=("Arial", 12))
-        clock_label.pack(side="right", padx=10)
+def animate_welcome():
+    for i in range(3):
+        welcome_label.after(300 * i, lambda: welcome_label.config(fg="red"))
+        welcome_label.after(600 * i, lambda: welcome_label.config(fg="green"))
 
-        def update_time():
-            current_time = time.strftime("%H:%M:%S")
-            current_date = time.strftime("%d/%m/%Y")
-            clock_label.config(text=f"{current_date}    {current_time}")
-            clock_label.after(1000, update_time)
+def update_profile_icon(event=None):
+    username = username_entry.get()
+    if username in profile_pics:
+        image = Image.open(profile_pics[username])
+        image = image.resize((100, 100), Image.LANCZOS)
+        profile_img = ImageTk.PhotoImage(image)
+        profile_label.config(image=profile_img)
+        profile_label.image = profile_img
+    else:
+        profile_label.config(image='')
+        profile_label.image = None
 
-        update_time()
+# Configuración de la interfaz principal
+root = tk.Tk()
+root.title("Login")
+root.geometry("800x600")
+root.configure(bg="#f0f0f0")
 
-        # Crear menú contextual para el escritorio
-        desktop_menu = tk.Menu(self.desktop_window, tearoff=0)
-        desktop_menu.add_command(label="Crear Archivo", command=self.create_file)
-        desktop_menu.add_command(label="Crear Carpeta", command=self.create_folder)
+profile_label = tk.Label(root, bg="#f0f0f0")
+profile_label.pack(pady=20, anchor='center')
 
-        def show_desktop_menu(event):
-            desktop_menu.post(event.x_root, event.y_root)
+username_entry = tk.Entry(root, justify="center", font=("Arial", 18), width=25)
+username_entry.pack(pady=10, anchor='center')
+username_entry.bind("<KeyRelease>", update_profile_icon)
 
-        self.desktop_window.bind("<Button-3>", show_desktop_menu)
-        self.render_icons()
+password_entry = tk.Entry(root, show="*", justify="center", font=("Arial", 18), width=25)
+password_entry.pack(pady=10, anchor='center')
 
-    def render_icons(self):
-        # Eliminar íconos existentes
-        for widget in self.desktop_window.winfo_children():
-            if isinstance(widget, tk.Button) or isinstance(widget, tk.Label):
-                widget.destroy()
+login_button = tk.Button(root, text="Login", command=login, bg="#28a745", fg="white", font=("Arial", 20), width=20)
+login_button.pack(pady=20, anchor='center')
 
-        # Renderizar carpetas y archivos
-        items = self.filesystem[self.current_path]
-        x, y = 20, 20
-        for folder in items["folders"]:
-            self.add_icon(x, y, folder, is_folder=True)
-            x += self.icon_spacing
-            if x >= self.icon_spacing * self.grid_size:
-                x = 20
-                y += self.icon_spacing
-        for file in items["files"]:
-            self.add_icon(x, y, file, is_folder=False)
-            x += self.icon_spacing
-            if x >= self.icon_spacing * self.grid_size:
-                x = 20
-                y += self.icon_spacing
+welcome_label = tk.Label(root, text="", font=("Arial", 24), bg="#f0f0f0", anchor='center')
 
-    def add_icon(self, x, y, name, is_folder):
-        icon = ImageTk.PhotoImage(
-            Image.open("icons/folder.png" if is_folder else "icons/file.png").resize(self.icon_size)
-        )
-        button = tk.Button(
-            self.desktop_window, image=icon, bg="#a9a6a5", bd=0,
-            command=lambda: self.open_folder(name) if is_folder else None
-        )
-        button.image = icon
-        button.place(x=x, y=y)
-        label = tk.Label(self.desktop_window, text=name, bg="#a9a6a5", font=("Arial", 10))
-        label.place(x=x, y=y + self.icon_size[1] + 5)
+def open_desktop():
+    desktop_window = tk.Toplevel(root)
+    open_desktop.create_file_position_counter = 0
 
-        # Menú contextual
-        menu = tk.Menu(self.desktop_window, tearoff=0)
-        menu.add_command(label="Crear Archivo", command=self.create_file)
-        menu.add_command(label="Crear Carpeta", command=self.create_folder)
+    for file_name, file_content in filesystem["root"]["files"].items():
+        file_icon = ImageTk.PhotoImage(Image.open("./icons/file.png").resize((50, 50)))
+        file_label = tk.Label(desktop_window, text=file_name, image=file_icon, compound="top", bg="#a9a6a5", font=("Arial", 10), padx=10, pady=5)
+        file_label.bind("<Button-1>", lambda e, name=file_name: open_file_window(name))
+        file_label.bind("<Button-3>", lambda e, name=file_name: on_file_right_click(e, name))
+        file_label.image = file_icon
+        open_desktop.create_file_position_counter += 1
+        row = open_desktop.create_file_position_counter // 5
+        col = open_desktop.create_file_position_counter % 5
+        file_label.place(x=100 + col * 100, y=50 + row * 100)
 
-        def show_context_menu(event):
-            menu.post(event.x_root, event.y_root)
+    desktop_window.geometry("800x600")
+    desktop_window.title("Escritorio Linux")
+    desktop_window.configure(bg="#a9a6a5")
 
-        button.bind("<Button-3>", show_context_menu)
+    profile_img = Image.open(profile_pics[username_entry.get()])
+    profile_img = profile_img.resize((50, 50), Image.LANCZOS)
+    profile_img = profile_img.convert("RGBA")
+    mask = Image.new("L", profile_img.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.ellipse((0, 0, 50, 50), fill=255)
+    profile_img.putalpha(mask)
+    profile_photo = ImageTk.PhotoImage(profile_img)
+    profile_button = tk.Menubutton(desktop_window, image=profile_photo, relief='flat', direction='below', bg='#a9a6a5', borderwidth=0)
+    profile_button.image = profile_photo
+    profile_button.place(x=740, y=10)
 
-    def create_file(self):
-        filename = simpledialog.askstring("Crear Archivo", "Ingrese el nombre del archivo:")
-        if filename:
-            if filename in self.filesystem[self.current_path]["files"]:
-                messagebox.showerror("Error", "El archivo ya existe.")
-            else:
-                self.filesystem[self.current_path]["files"].append(filename)
-                self.render_icons()
+    profile_menu = tk.Menu(profile_button, tearoff=0)
+    profile_menu.add_command(label="Cerrar sesión", command=lambda: logout(desktop_window))
+    profile_button.config(menu=profile_menu)
 
-    def create_folder(self):
-        folder_name = simpledialog.askstring("Crear Carpeta", "Ingrese el nombre de la carpeta:")
-        if folder_name:
-            if folder_name in self.filesystem[self.current_path]["folders"]:
-                messagebox.showerror("Error", "La carpeta ya existe.")
-            else:
-                self.filesystem[self.current_path]["folders"][folder_name] = {"folders": {}, "files": []}
-                self.render_icons()
+    def create_file(window):
+        file_name = simpledialog.askstring("Crear archivo", "Nombre del archivo:")
+        if file_name:
+            file_name = get_unique_filename(file_name, filesystem["root"]["files"])
+            filesystem["root"]["files"][file_name] = ""
+            save_filesystem()
+            file_icon = ImageTk.PhotoImage(Image.open("./icons/file.png").resize((50, 50)))
+            file_label = tk.Label(window, text=file_name, image=file_icon, compound="top", bg="#a9a6a5", font=("Arial", 10), padx=10, pady=5)
+            file_label.bind("<Button-1>", lambda e, name=file_name: open_file_window(name))
+            file_label.bind("<Button-3>", lambda e, name=file_name: on_file_right_click(e, name))
+            file_label.image = file_icon
+            open_desktop.create_file_position_counter += 1
+            row = open_desktop.create_file_position_counter // 5
+            col = open_desktop.create_file_position_counter % 5
+            file_label.place(x=100 + col * 100, y=50 + row * 100)
 
-    def open_folder(self, folder_name):
-        contents = self.filesystem[self.current_path]["folders"][folder_name]
+    def open_file_window(file_name):
+        file_window = tk.Toplevel(desktop_window)
+        file_window.geometry("600x400")
+        file_window.title(file_name)
+        file_content = filesystem["root"]["files"].get(file_name, "")
+        text_area = tk.Text(file_window, wrap='word', font=("Arial", 12), height=15, width=50)
+        text_area.insert("1.0", file_content)
+        text_area.pack(padx=10, pady=10)
+        save_button = tk.Button(file_window, text="Guardar", command=lambda: [save_file(file_name, text_area.get("1.0", tk.END)), file_window.destroy()], bg="#28a745", fg="white", font=("Arial", 12))
+        save_button.pack(pady=10)
 
-        # Crear una nueva ventana para mostrar los contenidos
-        folder_window = tk.Toplevel(self.desktop_window)
-        folder_window.title(f"Carpeta: {folder_name}")
-        folder_window.geometry("600x400")
-        folder_window.configure(bg="#e8e8e8")
+    def save_file(file_name, content):
+        filesystem["root"]["files"][file_name] = content.strip()
+        save_filesystem()
 
-        # Texto descriptivo
-        tk.Label(folder_window, text=f"Contenido de {folder_name}:", font=("Arial", 14), bg="#e8e8e8").pack(pady=10)
+    def on_file_right_click(event, file_name):
+        file_menu = tk.Menu(desktop_window, tearoff=0)
+        file_menu.add_command(label="Renombrar", command=lambda: rename_file(file_name))
+        file_menu.add_command(label="Eliminar", command=lambda: delete_file(file_name))
+        file_menu.post(event.x_root, event.y_root)
 
-        # Mostrar contenido
-        content_frame = tk.Frame(folder_window, bg="#e8e8e8")
-        content_frame.pack(fill="both", expand=True)
-        content_text = "\n".join(["Archivos:"] + contents["files"] + ["\nCarpetas:"] + list(contents["folders"].keys()))
-        tk.Label(content_frame, text=content_text, font=("Arial", 12), bg="#e8e8e8").pack(pady=10)
+    def rename_file(old_name):
+        new_name = simpledialog.askstring("Renombrar archivo", "Nuevo nombre del archivo:")
+        if new_name and new_name != old_name:
+            new_name = get_unique_filename(new_name, filesystem["root"]["files"])
+            filesystem["root"]["files"][new_name] = filesystem["root"]["files"].pop(old_name)
+            save_filesystem()
+            desktop_window.after(100, lambda: [desktop_window.destroy(), open_desktop()])
 
+    def delete_file(file_name):
+        if messagebox.askyesno("Eliminar archivo", f"¿Estás seguro de que deseas eliminar '{file_name}'?"):
+            del filesystem["root"]["files"][file_name]
+            save_filesystem()
+            desktop_window.after(100, lambda: [desktop_window.destroy(), open_desktop()])
 
-# Función de presentación
-def show_video_presentation(root, callback):
-    presentation_window = tk.Toplevel(root)
-    presentation_window.geometry("800x600")
-    presentation_window.title("Cargando...")
-    presentation_window.configure(bg="black")
+    taskbar = tk.Frame(desktop_window, bg="gray20", height=40)
+    taskbar.pack(side="bottom", fill="x")
+    wifi_icon = ImageTk.PhotoImage(Image.open("./icons/wifi.png").resize((20, 20)))
+    battery_icon = ImageTk.PhotoImage(Image.open("./icons/battery.png").resize((20, 20)))
+    sound_icon = ImageTk.PhotoImage(Image.open("./icons/sound.png").resize((20, 20)))
+    desktop_window.taskbar_icons = [wifi_icon, battery_icon, sound_icon]
 
-    video_label = tk.Label(presentation_window, bg="black")
-    video_label.pack(expand=True, fill="both")
-
-    cap = cv2.VideoCapture("./material/presentacion.mp4")
-
-    def update_frame():
-        ret, frame = cap.read()
-        if ret:
-            frame = cv2.resize(frame, (800, 600))
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame)
-            img_tk = ImageTk.PhotoImage(image=img)
-            video_label.img_tk = img_tk
-            video_label.config(image=img_tk)
-            presentation_window.after(15, update_frame)
-        else:
-            cap.release()
-            presentation_window.destroy()
-            callback()
-
-    update_frame()
-
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    root.withdraw()
-
-    def after_presentation():
-        app = FileSystemSimulator(root)
-        app.show_linux_desktop()
-
-    show_video_presentation(root, after_presentation)
-    root.mainloop()
+tk.mainloop()

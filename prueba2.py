@@ -1,9 +1,10 @@
 import tkinter as tk
-from tkinter import messagebox
-from PIL import Image, ImageTk
+from tkinter import messagebox, simpledialog
+from PIL import Image, ImageTk, ImageDraw
 import time
 from tkinter import simpledialog
 import os
+import json
 
 # Usuarios y contraseñas predefinidos
 users = {
@@ -16,6 +17,29 @@ profile_pics = {
     "Erick": "./material/erick.jpg",
     "Angel": "./material/angel.jpg"
 }
+
+# Inicializar estructura de archivos
+filesystem = {
+    "root": {
+        "folders": {},
+        "files": {}
+    }
+}
+
+# Cargar el sistema de archivos desde el archivo JSON si existe
+if os.path.exists("niveluno.json"):
+    with open("niveluno.json", "r") as f:
+        filesystem = json.load(f)
+
+def save_filesystem():
+    with open("niveluno.json", "w") as f:
+        json.dump(filesystem, f, indent=4)
+
+def logout(window):
+    window.destroy()
+    root.deiconify()
+    # Guardar el sistema de archivos al cerrar sesión
+    save_filesystem()
 
 def login():
     username = username_entry.get()
@@ -68,34 +92,75 @@ login_button.pack(pady=20, anchor='center')
 welcome_label = tk.Label(root, text="", font=("Arial", 24), bg="#f0f0f0", anchor='center')
 
 def open_desktop():
+    # Abrir una nueva ventana de escritorio
     desktop_window = tk.Toplevel(root)
+    open_desktop.create_file_position_counter = 0
+
+    for file_name, file_content in filesystem["root"]["files"].items():
+        file_icon = ImageTk.PhotoImage(Image.open("./icons/file.png").resize((50, 50)))
+        file_label = tk.Label(desktop_window, text=file_name, image=file_icon, compound="top", bg="#a9a6a5", font=("Arial", 10), padx=10, pady=5)
+        file_label.bind("<Button-1>", lambda e, name=file_name: open_file_window(name))
+        file_label.bind("<Button-3>", lambda e, name=file_name: on_file_right_click(e, name))
+        file_label.image = file_icon  # Prevenir recolección de basura
+        open_desktop.create_file_position_counter += 1
+        row = open_desktop.create_file_position_counter // 5
+        col = open_desktop.create_file_position_counter % 5
+        file_label.place(x=100 + col * 100, y=50 + row * 100)
+
     desktop_window.geometry("800x600")
     desktop_window.title("Escritorio Linux")
     desktop_window.configure(bg="#a9a6a5")
-    open_desktop.create_file_position_counter = 0
+
+    # Mostrar foto de perfil del usuario logueado en la esquina superior derecha
+    profile_img = Image.open(profile_pics[username_entry.get()])
+    profile_img = profile_img.resize((50, 50), Image.LANCZOS)
+    profile_img = profile_img.convert("RGBA")
+    mask = Image.new("L", profile_img.size, 0)
+    draw = ImageDraw.Draw(mask)
+    draw.ellipse((0, 0, 50, 50), fill=255)
+    profile_img.putalpha(mask)
+    profile_photo = ImageTk.PhotoImage(profile_img)
+    profile_button = tk.Menubutton(desktop_window, image=profile_photo, relief='flat', direction='below', bg='#a9a6a5', borderwidth=0)
+    profile_button.image = profile_photo
+    profile_button.place(x=740, y=10)
+
+    # Crear menú desplegable para la foto de perfil
+    profile_menu = tk.Menu(profile_button, tearoff=0)
+    profile_menu.add_command(label="Cerrar sesión", command=lambda: logout(desktop_window))
+    profile_button.config(menu=profile_menu)
 
     def create_file(window):
         file_name = simpledialog.askstring("Crear archivo", "Nombre del archivo:")
         if file_name:
+            # Validar si el archivo ya existe y renombrarlo automáticamente si es necesario
+            file_name = generate_unique_filename(file_name)
+            
+            filesystem["root"]["files"][file_name] = ""
+            save_filesystem()
             file_icon = ImageTk.PhotoImage(Image.open("./icons/file.png").resize((50, 50)))
             file_label = tk.Label(window, text=file_name, image=file_icon, compound="top", bg="#a9a6a5", font=("Arial", 10), padx=10, pady=5)
             file_label.bind("<Button-1>", lambda e, name=file_name: open_file_window(name))
+            file_label.bind("<Button-3>", lambda e, name=file_name: on_file_right_click(e, name))
             file_label.image = file_icon  # Prevenir recolección de basura
             open_desktop.create_file_position_counter += 1
             row = open_desktop.create_file_position_counter // 5
             col = open_desktop.create_file_position_counter % 5
             file_label.place(x=100 + col * 100, y=50 + row * 100)
 
+    def generate_unique_filename(base_name):
+        original_name = base_name
+        counter = 1
+        while base_name in filesystem["root"]["files"]:
+            base_name = f"{original_name}({counter})"
+            counter += 1
+        return base_name
+
     def open_file_window(file_name):
         file_window = tk.Toplevel(desktop_window)
         file_window.geometry("600x400")
         file_window.title(file_name)
         
-        try:
-            with open(f"./{file_name}.txt", "r") as f:
-                file_content = f.read()
-        except FileNotFoundError:
-            file_content = ""
+        file_content = filesystem["root"]["files"].get(file_name, "")
         
         text_area = tk.Text(file_window, wrap='word', font=("Arial", 12), height=15, width=50)
         text_area.insert("1.0", file_content)
@@ -105,10 +170,30 @@ def open_desktop():
         save_button.pack(pady=10)
 
     def save_file(file_name, content):
-        with open(f"./{file_name}.txt", "w") as f:
-            f.write(content)
-        
+        filesystem["root"]["files"][file_name] = content.strip()
+        save_filesystem()
     
+    def on_file_right_click(event, file_name):
+        file_menu = tk.Menu(desktop_window, tearoff=0)
+        file_menu.add_command(label="Renombrar", command=lambda: rename_file(file_name))
+        file_menu.add_command(label="Eliminar", command=lambda: delete_file(file_name))
+        file_menu.post(event.x_root, event.y_root)
+
+    def rename_file(old_name):
+        new_name = simpledialog.askstring("Renombrar archivo", "Nuevo nombre del archivo:")
+        if new_name and new_name != old_name:
+            # Validar si el archivo ya existe y renombrarlo automáticamente si es necesario
+            new_name = generate_unique_filename(new_name)
+            
+            filesystem["root"]["files"][new_name] = filesystem["root"]["files"].pop(old_name)
+            save_filesystem()
+            desktop_window.after(100, lambda: [desktop_window.destroy(), open_desktop()])
+
+    def delete_file(file_name):
+        if messagebox.askyesno("Eliminar archivo", f"¿Estás seguro de que deseas eliminar '{file_name}'?"):
+            del filesystem["root"]["files"][file_name]
+            save_filesystem()
+            desktop_window.after(100, lambda: [desktop_window.destroy(), open_desktop()])
 
     # Crear barra de tareas
     taskbar = tk.Frame(desktop_window, bg="gray20", height=40)
@@ -149,11 +234,4 @@ def open_desktop():
     context_menu = tk.Menu(desktop_window, tearoff=0)
     context_menu.add_command(label="Crear archivo", command=lambda: create_file(desktop_window))
 
-
-def delete_all_files():
-    for file in os.listdir("./"):
-        if file.endswith(".txt"):
-            os.remove(file)
-
-delete_all_files()
 root.mainloop()
