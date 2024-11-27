@@ -4,10 +4,14 @@
             "adios": {
                 "folders": {},
                 "files": {}
+            },
+            "simulacion": {
+                "folders": {},
+                "files": {}
             }
         },
         "files": {
-            "hola": "adsa"
+            "hola": ""
         }
     }
 }
