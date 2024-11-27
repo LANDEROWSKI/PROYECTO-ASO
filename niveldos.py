@@ -17,27 +17,30 @@ profile_pics = {
     "Angel": "./material/angel.jpg"
 }
 
-# Inicializar estructura de archivos compartida
+# Inicializar estructura de archivos por usuario
 filesystem = {}
 
 # Cargar el sistema de archivos desde el archivo JSON si existe
-if os.path.exists("niveluno.json"):
-    with open("niveluno.json", "r") as f:
+if os.path.exists("niveldos.json"):
+    with open("niveldos.json", "r") as f:
         filesystem = json.load(f)
 else:
-    # Inicializar un directorio vacío compartido
-    filesystem = {
-        "root": {
+    # Inicializar un directorio vacío para cada usuario
+    for user in users:
+        filesystem[user] = {
             "folders": {},
             "files": {}
         }
-    }
 
 # Asegurarse de que el usuario actual esté en el sistema de archivos
 current_user = None
 
 def save_filesystem():
     with open("niveluno.json", "w") as f:
+        json.dump(filesystem, f, indent=4)
+
+def save_files():
+    with open("niveldos.json", "w") as f:
         json.dump(filesystem, f, indent=4)
 
 def logout(window):
@@ -53,6 +56,12 @@ def login():
     
     if username in users and users[username] == password:
         current_user = username
+        # Asegurarse de que el usuario tenga una estructura de archivos inicializada
+        if current_user not in filesystem:
+            filesystem[current_user] = {
+                "folders": {},
+                "files": {}
+            }
         welcome_label.config(text=f"¡Bienvenido {username}!", fg="#2ecc71")
         welcome_label.pack()
         animate_welcome()
@@ -121,7 +130,7 @@ def open_desktop():
                 widget.destroy()
         
         open_desktop.create_file_position_counter = 0
-        for file_name, file_content in filesystem["root"]["files"].items():
+        for file_name, file_content in filesystem[current_user]["files"].items():
             file_icon = ImageTk.PhotoImage(Image.open("./icons/file.png").resize((50, 50)))
             file_label = tk.Label(desktop_window, text=file_name, image=file_icon, compound="top", bg="#a9a6a5", font=("Arial", 10), padx=10, pady=5)
             file_label.bind("<Button-1>", lambda e, name=file_name: open_file_window(name))
@@ -175,8 +184,9 @@ def open_desktop():
             # Validar si el archivo ya existe y renombrarlo automáticamente si es necesario
             file_name = generate_unique_filename(file_name)
             
-            filesystem["root"]["files"][file_name] = ""
+            filesystem[current_user]["files"][file_name] = ""
             save_filesystem()
+            save_files()
             create_file_labels()
             create_file_window.destroy()
 
@@ -186,7 +196,7 @@ def open_desktop():
     def generate_unique_filename(base_name):
         original_name = base_name
         counter = 1
-        while base_name in filesystem["root"]["files"]:
+        while base_name in filesystem[current_user]["files"]:
             base_name = f"{original_name}({counter})"
             counter += 1
         return base_name
@@ -196,7 +206,7 @@ def open_desktop():
         file_window.geometry("600x400")
         file_window.title(file_name)
         
-        file_content = filesystem["root"]["files"].get(file_name, "")
+        file_content = filesystem[current_user]["files"].get(file_name, "")
         
         text_area = tk.Text(file_window, wrap='word', font=("Arial", 12), height=15, width=50)
         text_area.insert("1.0", file_content)
@@ -206,8 +216,9 @@ def open_desktop():
         save_button.pack(pady=10)
 
     def save_file(file_name, content):
-        filesystem["root"]["files"][file_name] = content.strip()
+        filesystem[current_user]["files"][file_name] = content.strip()
         save_filesystem()
+        save_files()
     
     def on_file_right_click(event, file_name):
         file_menu = tk.Menu(desktop_window, tearoff=0)
@@ -231,12 +242,13 @@ def open_desktop():
             if not new_name:
                 messagebox.showerror("Error", "El nombre no puede estar vacío.", parent=rename_window)
                 return
-            if new_name in filesystem["root"]["files"]:
+            if new_name in filesystem[current_user]["files"]:
                 messagebox.showerror("Error", "El nombre ya existe. Por favor, elige otro nombre.", parent=rename_window)
                 return
             # Renombrar archivo en el sistema de archivos
-            filesystem["root"]["files"][new_name] = filesystem["root"]["files"].pop(old_name)
+            filesystem[current_user]["files"][new_name] = filesystem[current_user]["files"].pop(old_name)
             save_filesystem()
+            save_files()
             create_file_labels()
             rename_window.destroy()
 
@@ -245,8 +257,9 @@ def open_desktop():
 
     def delete_file(file_name):
         if messagebox.askyesno("Eliminar archivo", f"¿Estás seguro de que deseas eliminar '{file_name}'?"):
-            del filesystem["root"]["files"][file_name]
+            del filesystem[current_user]["files"][file_name]
             save_filesystem()
+            save_files()
             create_file_labels()
 
     # Crear barra de tareas

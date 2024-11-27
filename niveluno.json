@@ -1,10 +1,17 @@
 {
-    "root": {
+    "shared": {
         "folders": {},
         "files": {
-            "hola(1)": "Hola Urey",
-            "erick": "",
-            "erick(1)": ""
+            "mi_primer": {
+                "content": "Hola, soy erick",
+                "owner": "Erick",
+                "acl": {
+                    "Erick": {
+                        "read": true,
+                        "write": true
+                    }
+                }
+            }
         }
     }
 }

@@ -17,24 +17,34 @@ profile_pics = {
     "Angel": "./material/angel.jpg"
 }
 
-# Inicializar estructura de archivos compartida
-filesystem = {}
+# Inicializar estructura de archivos
+filesystem = {
+    "shared": {
+        "folders": {},
+        "files": {}
+    }
+}
 
 # Cargar el sistema de archivos desde el archivo JSON si existe
-if os.path.exists("niveluno.json"):
-    with open("niveluno.json", "r") as f:
-        filesystem = json.load(f)
+if os.path.exists("nivelseguridad.json"):
+    with open("nivelseguridad.json", "r") as f:
+        try:
+            filesystem = json.load(f)
+        except json.JSONDecodeError:
+            filesystem = {
+                "shared": {
+                    "folders": {},
+                    "files": {}
+                }
+            }
 else:
-    # Inicializar un directorio vacío compartido
+    # Inicializar un directorio vacío
     filesystem = {
-        "root": {
+        "shared": {
             "folders": {},
             "files": {}
         }
     }
-
-# Asegurarse de que el usuario actual esté en el sistema de archivos
-current_user = None
 
 def save_filesystem():
     with open("niveluno.json", "w") as f:
@@ -50,7 +60,7 @@ def login():
     global current_user
     username = username_entry.get()
     password = password_entry.get()
-    
+
     if username in users and users[username] == password:
         current_user = username
         welcome_label.config(text=f"¡Bienvenido {username}!", fg="#2ecc71")
@@ -119,9 +129,9 @@ def open_desktop():
         for widget in desktop_window.winfo_children():
             if isinstance(widget, tk.Label):
                 widget.destroy()
-        
+
         open_desktop.create_file_position_counter = 0
-        for file_name, file_content in filesystem["root"]["files"].items():
+        for file_name, file_info in filesystem.get("shared", {}).get("files", {}).items():
             file_icon = ImageTk.PhotoImage(Image.open("./icons/file.png").resize((50, 50)))
             file_label = tk.Label(desktop_window, text=file_name, image=file_icon, compound="top", bg="#a9a6a5", font=("Arial", 10), padx=10, pady=5)
             file_label.bind("<Button-1>", lambda e, name=file_name: open_file_window(name))
@@ -135,7 +145,7 @@ def open_desktop():
     create_file_labels()
 
     desktop_window.geometry("800x600")
-    desktop_window.title(f"Escritorio de {current_user}")
+    desktop_window.title(f"Escritorio Compartido de {current_user}")
     desktop_window.configure(bg="#a9a6a5")
 
     # Mostrar foto de perfil del usuario logueado en la esquina superior derecha
@@ -157,97 +167,113 @@ def open_desktop():
     profile_button.config(menu=profile_menu)
 
     def create_file(window):
-        create_file_window = tk.Toplevel(window)
-        create_file_window.title("Crear archivo")
-        create_file_window.geometry("400x200")
-        create_file_window.configure(bg="#34495e")
-
-        tk.Label(create_file_window, text="Nombre del archivo:", font=("Arial", 14), bg="#34495e", fg="#ecf0f1").pack(pady=20)
-        file_name_entry = tk.Entry(create_file_window, font=("Arial", 14), width=30)
-        file_name_entry.pack(pady=10)
-        file_name_entry.focus_set()
-
-        def confirm_create():
-            file_name = file_name_entry.get().strip()
-            if not file_name:
-                messagebox.showerror("Error", "El nombre no puede estar vacío.", parent=create_file_window)
-                return
+        file_name = simpledialog.askstring("Crear archivo", "Nombre del archivo:", parent=window)
+        if file_name:
             # Validar si el archivo ya existe y renombrarlo automáticamente si es necesario
             file_name = generate_unique_filename(file_name)
-            
-            filesystem["root"]["files"][file_name] = ""
+
+            filesystem["shared"]["files"][file_name] = {
+                "content": "",
+                "owner": current_user,
+                "acl": {
+                    current_user: {"read": True, "write": True}
+                }
+            }
             save_filesystem()
             create_file_labels()
-            create_file_window.destroy()
-
-        create_button = tk.Button(create_file_window, text="Crear", command=confirm_create, bg="#27ae60", fg="white", font=("Arial", 14))
-        create_button.pack(pady=20)
 
     def generate_unique_filename(base_name):
         original_name = base_name
         counter = 1
-        while base_name in filesystem["root"]["files"]:
+        while base_name in filesystem.get("shared", {}).get("files", {}):
             base_name = f"{original_name}({counter})"
             counter += 1
         return base_name
 
     def open_file_window(file_name):
+        file_info = filesystem["shared"]["files"][file_name]
+        file_acl = file_info["acl"]
+
+        if not has_permission(current_user, file_acl, "read"):
+            messagebox.showerror("Error", "No tienes permiso de lectura para este archivo.")
+            return
+
         file_window = tk.Toplevel(desktop_window)
         file_window.geometry("600x400")
         file_window.title(file_name)
-        
-        file_content = filesystem["root"]["files"].get(file_name, "")
-        
+
+        file_content = file_info["content"]
+
         text_area = tk.Text(file_window, wrap='word', font=("Arial", 12), height=15, width=50)
         text_area.insert("1.0", file_content)
         text_area.pack(padx=10, pady=10)
-        
-        save_button = tk.Button(file_window, text="Guardar", command=lambda: [save_file(file_name, text_area.get("1.0", tk.END)), file_window.destroy()], bg="#28a745", fg="white", font=("Arial", 12))
-        save_button.pack(pady=10)
+
+        if has_permission(current_user, file_acl, "write"):
+            save_button = tk.Button(file_window, text="Guardar", command=lambda: [save_file(file_name, text_area.get("1.0", tk.END)), file_window.destroy()], bg="#28a745", fg="white", font=("Arial", 12))
+            save_button.pack(pady=10)
+        else:
+            text_area.config(state="disabled")  # Deshabilitar edición si no tiene permiso de escritura
 
     def save_file(file_name, content):
-        filesystem["root"]["files"][file_name] = content.strip()
+        filesystem["shared"]["files"][file_name]["content"] = content.strip()
         save_filesystem()
-    
+
     def on_file_right_click(event, file_name):
-        file_menu = tk.Menu(desktop_window, tearoff=0)
-        file_menu.add_command(label="Renombrar", command=lambda: rename_file(file_name))
-        file_menu.add_command(label="Eliminar", command=lambda: delete_file(file_name))
-        file_menu.post(event.x_root, event.y_root)
+        file_info = filesystem["shared"]["files"][file_name]
+        if file_info["owner"] == current_user:
+            file_menu = tk.Menu(desktop_window, tearoff=0)
+            file_menu.add_command(label="Modificar permisos", command=lambda: modify_permissions(file_name))
+            file_menu.add_command(label="Eliminar archivo", command=lambda: delete_file(file_name))
+            file_menu.post(event.x_root, event.y_root)
 
-    def rename_file(old_name):
-        rename_window = tk.Toplevel(desktop_window)
-        rename_window.title("Renombrar archivo")
-        rename_window.geometry("400x200")
-        rename_window.configure(bg="#34495e")
+    def modify_permissions(file_name):
+        file_info = filesystem["shared"]["files"][file_name]
+        file_acl = file_info["acl"]
 
-        tk.Label(rename_window, text="Nuevo nombre del archivo:", font=("Arial", 14), bg="#34495e", fg="#ecf0f1").pack(pady=20)
-        new_name_entry = tk.Entry(rename_window, font=("Arial", 14), width=30)
-        new_name_entry.pack(pady=10)
-        new_name_entry.focus_set()
+        permissions_window = tk.Toplevel(desktop_window)
+        permissions_window.title("Modificar Permisos")
+        permissions_window.geometry("400x300")
+        permissions_window.configure(bg="#34495e")
 
-        def confirm_rename():
-            new_name = new_name_entry.get().strip()
-            if not new_name:
-                messagebox.showerror("Error", "El nombre no puede estar vacío.", parent=rename_window)
-                return
-            if new_name in filesystem["root"]["files"]:
-                messagebox.showerror("Error", "El nombre ya existe. Por favor, elige otro nombre.", parent=rename_window)
-                return
-            # Renombrar archivo en el sistema de archivos
-            filesystem["root"]["files"][new_name] = filesystem["root"]["files"].pop(old_name)
-            save_filesystem()
-            create_file_labels()
-            rename_window.destroy()
+        tk.Label(permissions_window, text="Usuario:", font=("Arial", 14), bg="#34495e", fg="#ecf0f1").pack(pady=10)
+        user_entry = tk.Entry(permissions_window, font=("Arial", 14))
+        user_entry.pack(pady=5)
 
-        rename_button = tk.Button(rename_window, text="Renombrar", command=confirm_rename, bg="#27ae60", fg="white", font=("Arial", 14))
-        rename_button.pack(pady=20)
+        tk.Label(permissions_window, text="Permisos (r = leer, w = escribir, rw = ambos, void = sin permisos):", font=("Arial", 14), bg="#34495e", fg="#ecf0f1").pack(pady=10)
+        permission_entry = tk.Entry(permissions_window, font=("Arial", 14))
+        permission_entry.pack(pady=5)
+
+        def save_permissions():
+            target_user = user_entry.get().strip()
+            permissions = permission_entry.get().strip().lower()
+            if target_user:
+                if permissions == "r":
+                    file_acl[target_user] = {"read": True, "write": False}
+                elif permissions == "w":
+                    file_acl[target_user] = {"read": False, "write": True}
+                elif permissions == "rw":
+                    file_acl[target_user] = {"read": True, "write": True}
+                elif permissions == "void":
+                    if target_user in file_acl:
+                        del file_acl[target_user]
+                else:
+                    messagebox.showerror("Error", "Permiso no válido. Usa r, w, rw o void.")
+                    return
+                save_filesystem()
+                permissions_window.destroy()
+            else:
+                messagebox.showerror("Error", "Por favor, ingresa un usuario.")
+
+        tk.Button(permissions_window, text="Guardar Permisos", command=save_permissions, bg="#27ae60", fg="white", font=("Arial", 14)).pack(pady=20)
 
     def delete_file(file_name):
         if messagebox.askyesno("Eliminar archivo", f"¿Estás seguro de que deseas eliminar '{file_name}'?"):
-            del filesystem["root"]["files"][file_name]
+            del filesystem["shared"]["files"][file_name]
             save_filesystem()
             create_file_labels()
+
+    def has_permission(username, file_acl, permission):
+        return file_acl.get(username, {}).get(permission, False)
 
     # Crear barra de tareas
     taskbar = tk.Frame(desktop_window, bg="gray20", height=40)

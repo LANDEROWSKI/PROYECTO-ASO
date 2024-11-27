@@ -1,0 +1,25 @@
+{
+    "root": {
+        "folders": {
+            "hola": {
+                "folders": {
+                    "managua": {
+                        "folders": {},
+                        "files": {
+                            "texto": "Hola Angel"
+                        }
+                    }
+                },
+                "files": {
+                    "codigo": "Adios BB",
+                    "angel": ""
+                }
+            },
+            "adios": {
+                "folders": {},
+                "files": {}
+            }
+        },
+        "files": {}
+    }
+}

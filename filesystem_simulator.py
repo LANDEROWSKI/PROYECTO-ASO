@@ -5,6 +5,7 @@ import json
 import os
 import time
 import cv2
+import subprocess
 
 
 class FileSystemSimulator:
@@ -77,6 +78,8 @@ class FileSystemSimulator:
             desktop_menu.post(event.x_root, event.y_root)
 
         self.desktop_window.bind("<Button-3>", show_desktop_menu)
+        
+        # Renderizar los íconos del escritorio
         self.render_icons(self.desktop_window, "root")
 
     def render_icons(self, parent_window, path):
@@ -99,6 +102,24 @@ class FileSystemSimulator:
             if x >= self.icon_spacing * self.grid_size[0]:
                 x = 20
                 y += self.icon_spacing
+
+        # Agregar íconos para ejecutar niveluno.py, niveltres.py, niveldos.py y nivelseguridad.py
+        self.add_python_icon(parent_window, x, y, "niveluno.py", "icons/uno.png")
+        x += self.icon_spacing
+        if x >= self.icon_spacing * self.grid_size[0]:
+            x = 20
+            y += self.icon_spacing
+        self.add_python_icon(parent_window, x, y, "niveltres.py", "icons/tres.png")
+        x += self.icon_spacing
+        if x >= self.icon_spacing * self.grid_size[0]:
+            x = 20
+            y += self.icon_spacing
+        self.add_python_icon(parent_window, x, y, "niveldos.py", "icons/dos.png")
+        x += self.icon_spacing
+        if x >= self.icon_spacing * self.grid_size[0]:
+            x = 20
+            y += self.icon_spacing
+        self.add_python_icon(parent_window, x, y, "nivelseguridad.py", "icons/seguridad.png")
 
     def add_icon(self, parent_window, x, y, name, is_folder, path):
         """Agregar ícono de archivo o carpeta."""
@@ -126,6 +147,28 @@ class FileSystemSimulator:
             menu.post(event.x_root, event.y_root)
 
         button.bind("<Button-3>", show_context_menu)
+
+    def add_python_icon(self, parent_window, x, y, filename, icon_path):
+        """Agregar un ícono en el escritorio para ejecutar un archivo Python."""
+        python_icon = ImageTk.PhotoImage(Image.open(icon_path).resize(self.icon_size))
+        button = tk.Button(
+            parent_window,
+            image=python_icon,
+            bg="#a9a6a5",
+            bd=0,
+            command=lambda: self.execute_python_file(filename),
+        )
+        button.image = python_icon
+        button.place(x=x, y=y)
+        label = tk.Label(parent_window, text=filename, bg="#a9a6a5", font=("Arial", 10))
+        label.place(x=x, y=y + self.icon_size[1] + 5)
+
+    def execute_python_file(self, filename):
+        """Ejecutar un archivo Python."""
+        try:
+            subprocess.Popen(["python", filename])
+        except Exception as e:
+            messagebox.showerror("Error", f"No se pudo ejecutar el archivo {filename}: {e}")
 
     def create_file(self, path):
         filename = simpledialog.askstring("Crear Archivo", "Ingrese el nombre del archivo:", parent=self.desktop_window)

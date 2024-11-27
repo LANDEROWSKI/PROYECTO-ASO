@@ -1,0 +1,41 @@
+{
+    "root": {
+        "folders": {
+            "hola": {
+                "folders": {
+                    "hola": {
+                        "folders": {},
+                        "files": {
+                            "permiteme": ""
+                        }
+                    }
+                },
+                "files": {}
+            },
+            "hola2": {
+                "folders": {},
+                "files": {}
+            }
+        },
+        "files": {
+            "hola(1)": "Hola Urey",
+            "erick": "",
+            "erick(1)": ""
+        }
+    },
+    "Erick": {
+        "folders": {},
+        "files": {
+            "hola": "",
+            "gracia": "Hola",
+            "hola3": "",
+            "adios": "Hola, Soy Erick"
+        }
+    },
+    "Angel": {
+        "folders": {},
+        "files": {
+            "hola_soy_urey": ""
+        }
+    }
+}
