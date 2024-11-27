@@ -3,17 +3,11 @@ from tkinter import messagebox, simpledialog
 from PIL import Image, ImageTk
 import json
 import os
-import time
-import cv2
-
 
 class FileSystemSimulator:
     def __init__(self, root):
         self.root = root
         self.root.title("Simulador de Sistema de Archivos")
-
-        # Mostrar mensaje de bienvenida
-        messagebox.showinfo("Bienvenido", "Bienvenido al Simulador de Sistema de Archivos")
 
         # Archivo para guardar el sistema de archivos
         self.filesystem_file = "filesystem.json"
@@ -39,34 +33,6 @@ class FileSystemSimulator:
         self.desktop_window.geometry("800x600")
         self.desktop_window.title("Escritorio Linux")
         self.desktop_window.configure(bg="#a9a6a5")
-
-        # Crear barra de tareas
-        taskbar = tk.Frame(self.desktop_window, bg="gray20", height=40)
-        taskbar.pack(side="bottom", fill="x")
-
-        # Cargar íconos de la barra de tareas
-        wifi_icon = ImageTk.PhotoImage(Image.open("icons/wifi.png").resize((20, 20)))
-        battery_icon = ImageTk.PhotoImage(Image.open("icons/battery.png").resize((20, 20)))
-        sound_icon = ImageTk.PhotoImage(Image.open("icons/sound.png").resize((20, 20)))
-
-        self.taskbar_icons = [wifi_icon, battery_icon, sound_icon]
-
-        # Widgets para íconos de la barra de tareas
-        tk.Label(taskbar, image=wifi_icon, bg="gray20").pack(side="left", padx=5, pady=5)
-        tk.Label(taskbar, image=battery_icon, bg="gray20").pack(side="left", padx=5, pady=5)
-        tk.Label(taskbar, image=sound_icon, bg="gray20").pack(side="left", padx=5, pady=5)
-
-        # Reloj en la barra de tareas
-        clock_label = tk.Label(taskbar, text="", bg="gray20", fg="white", font=("Arial", 12))
-        clock_label.pack(side="right", padx=10)
-
-        def update_time():
-            current_time = time.strftime("%H:%M:%S")
-            current_date = time.strftime("%d/%m/%Y")
-            clock_label.config(text=f"{current_date}    {current_time}")
-            clock_label.after(1000, update_time)
-
-        update_time()
 
         # Crear menú contextual para el escritorio
         desktop_menu = tk.Menu(self.desktop_window, tearoff=0)
@@ -102,9 +68,19 @@ class FileSystemSimulator:
 
     def add_icon(self, parent_window, x, y, name, is_folder, path):
         """Agregar ícono de archivo o carpeta."""
-        icon = ImageTk.PhotoImage(
-            Image.open("icons/folder.png" if is_folder else "icons/file.png").resize(self.icon_size)
-        )
+        icon_path = "icons/folder.png" if is_folder else "icons/file.png"
+        
+        # Verificar si la carpeta "icons" existe y si las imágenes están presentes
+        if not os.path.exists("icons"):
+            os.makedirs("icons")  # Crear la carpeta si no existe
+            messagebox.showerror("Error", "La carpeta 'icons' no existe. Asegúrese de que las imágenes estén en esta carpeta.")
+
+        try:
+            icon = ImageTk.PhotoImage(Image.open(icon_path).resize(self.icon_size))
+        except IOError:
+            messagebox.showerror("Error", f"Icono no encontrado: {icon_path}")
+            return
+
         button = tk.Button(
             parent_window,
             image=icon,
@@ -128,27 +104,27 @@ class FileSystemSimulator:
         button.bind("<Button-3>", show_context_menu)
 
     def create_file(self, path):
-        filename = simpledialog.askstring("Crear Archivo", "Ingrese el nombre del archivo:", parent=self.desktop_window)
+        filename = simpledialog.askstring("Crear Archivo", "Ingrese el nombre del archivo:")
         if filename:
             if filename in self.filesystem[path]["files"]:
-                messagebox.showerror("Error", "El archivo ya existe.", parent=self.desktop_window)
+                messagebox.showerror("Error", "El archivo ya existe.")
             else:
                 self.filesystem[path]["files"][filename] = ""
                 self.save_filesystem()
                 self.render_icons(self.desktop_window, path)
 
     def create_folder(self, path):
-        folder_name = simpledialog.askstring("Crear Carpeta", "Ingrese el nombre de la carpeta:", parent=self.desktop_window)
+        folder_name = simpledialog.askstring("Crear Carpeta", "Ingrese el nombre de la carpeta:")
         if folder_name:
             if folder_name in self.filesystem[path]["folders"]:
-                messagebox.showerror("Error", "La carpeta ya existe.", parent=self.desktop_window)
+                messagebox.showerror("Error", "La carpeta ya existe.")
             else:
                 self.filesystem[path]["folders"][folder_name] = {"folders": {}, "files": {}}
                 self.save_filesystem()
                 self.render_icons(self.desktop_window, path)
 
     def rename_item(self, path, name, is_folder):
-        new_name = simpledialog.askstring("Renombrar", f"Renombrar '{name}' a:", parent=self.desktop_window)
+        new_name = simpledialog.askstring("Renombrar", f"Renombrar '{name}' a:")
         if new_name:
             if is_folder:
                 self.filesystem[path]["folders"][new_name] = self.filesystem[path]["folders"].pop(name)
@@ -158,7 +134,7 @@ class FileSystemSimulator:
             self.render_icons(self.desktop_window, path)
 
     def delete_item(self, path, name, is_folder):
-        if messagebox.askyesno("Eliminar", f"¿Seguro que desea eliminar '{name}'?", parent=self.desktop_window):
+        if messagebox.askyesno("Eliminar", f"¿Seguro que desea eliminar '{name}'?"):
             if is_folder:
                 del self.filesystem[path]["folders"][name]
             else:
@@ -195,49 +171,16 @@ class FileSystemSimulator:
         def save_file():
             self.filesystem[path]["files"][filename] = text_area.get("1.0", "end-1c")
             self.save_filesystem()
-            messagebox.showinfo("Guardado", "Archivo guardado exitosamente.", parent=file_window)
+            messagebox.showinfo("Guardado", "Archivo guardado exitosamente.")
 
         save_button = tk.Button(file_window, text="Guardar", command=save_file)
         save_button.pack(side="bottom", pady=10)
-
-
-# Función de presentación
-def show_video_presentation(root, callback):
-    presentation_window = tk.Toplevel(root)
-    presentation_window.geometry("800x600")
-    presentation_window.title("Cargando...")
-    presentation_window.configure(bg="black")
-
-    video_label = tk.Label(presentation_window, bg="black")
-    video_label.pack(expand=True, fill="both")
-
-    cap = cv2.VideoCapture("./material/presentacion.mp4")
-
-    def update_frame():
-        ret, frame = cap.read()
-        if ret:
-            frame = cv2.resize(frame, (800, 600))
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            img = Image.fromarray(frame)
-            img_tk = ImageTk.PhotoImage(image=img)
-            video_label.img_tk = img_tk
-            video_label.config(image=img_tk)
-            presentation_window.after(15, update_frame)
-        else:
-            cap.release()
-            presentation_window.destroy()
-            callback()
-
-    update_frame()
 
 
 if __name__ == "__main__":
     root = tk.Tk()
     root.withdraw()
 
-    def after_presentation():
-        app = FileSystemSimulator(root)
-        app.show_linux_desktop()
-
-    show_video_presentation(root, after_presentation)
+    app = FileSystemSimulator(root)
+    app.show_linux_desktop()
     root.mainloop()
